@@ -70,6 +70,9 @@ from umodbus.exceptions import (error_code_to_exception_map,
                                 IllegalDataAddressError)
 from umodbus.utils import memoize, get_function_code_from_request_pdu
 
+import logging
+logger = logging.getLogger()
+
 # Function related to data access.
 READ_COILS = 1
 READ_DISCRETE_INPUTS = 2
@@ -349,7 +352,7 @@ class ReadCoils(ModbusFunction):
         read_coils.data = data
         return read_coils
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
@@ -357,16 +360,13 @@ class ReadCoils(ModbusFunction):
         :return: Result of call to endpoint.
         """
         try:
-            values = []
-
-            for address in range(self.starting_address,
-                                 self.starting_address + self.quantity):
-                endpoint = route_map.match(slave_id, self.function_code,
-                                           address)
-                values.append(endpoint(slave_id=slave_id, address=address,
-                                       function_code=self.function_code))
-
-            return values
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            return server.read_coils(offset, length)
 
         # route_map.match() returns None if no match is found. Calling None
         # results in TypeError.
@@ -562,7 +562,7 @@ class ReadDiscreteInputs(ModbusFunction):
         read_discrete_inputs.data = data
         return read_discrete_inputs
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
@@ -570,16 +570,13 @@ class ReadDiscreteInputs(ModbusFunction):
         :return: Result of call to endpoint.
         """
         try:
-            values = []
-
-            for address in range(self.starting_address,
-                                 self.starting_address + self.quantity):
-                endpoint = route_map.match(slave_id, self.function_code,
-                                           address)
-                values.append(endpoint(slave_id=slave_id, address=address,
-                                       function_code=self.function_code))
-
-            return values
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            return server.read_inputs(offset, length)
 
         # route_map.match() returns None if no match is found. Calling None
         # results in TypeError.
@@ -742,7 +739,7 @@ class ReadHoldingRegisters(ModbusFunction):
 
         return read_holding_registers
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
@@ -750,21 +747,18 @@ class ReadHoldingRegisters(ModbusFunction):
         :return: Result of call to endpoint.
         """
         try:
-            values = []
+          if slave_id != server.slave_id:
+            raise IllegalDataAddressError()
 
-            for address in range(self.starting_address,
-                                 self.starting_address + self.quantity):
-                endpoint = route_map.match(slave_id, self.function_code,
-                                           address)
-                values.append(endpoint(slave_id=slave_id, address=address,
-                                       function_code=self.function_code))
-
-            return values
+          offset = self.starting_address 
+          length = self.quantity 
+          function_code = self.function_code
+          return server.read_registers(offset, length)
 
         # route_map.match() returns None if no match is found. Calling None
         # results in TypeError.
         except TypeError:
-            raise IllegalDataAddressError()
+          raise IllegalDataAddressError()
 
 
 class ReadInputRegisters(ModbusFunction):
@@ -920,7 +914,7 @@ class ReadInputRegisters(ModbusFunction):
 
         return read_input_registers
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
@@ -928,16 +922,13 @@ class ReadInputRegisters(ModbusFunction):
         :return: Result of call to endpoint.
         """
         try:
-            values = []
-
-            for address in range(self.starting_address,
-                                 self.starting_address + self.quantity):
-                endpoint = route_map.match(slave_id, self.function_code,
-                                           address)
-                values.append(endpoint(slave_id=slave_id, address=address,
-                                       function_code=self.function_code))
-
-            return values
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            return server.read_inputs(offset, length)
 
         # route_map.match() returns None if no match is found. Calling None
         # results in TypeError.
@@ -1087,21 +1078,27 @@ class WriteSingleCoil(ModbusFunction):
 
         return write_single_coil
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
         :param eindpoint: Instance of modbus.route.Map.
+        :return: Result of call to endpoint.
         """
-        endpoint = route_map.match(slave_id, self.function_code, self.address)
         try:
-            endpoint(slave_id=slave_id, address=self.address, value=self.value,
-                     function_code=self.function_code)
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            value = self.value
+            server.write_coil(offset, value)
+
         # route_map.match() returns None if no match is found. Calling None
         # results in TypeError.
         except TypeError:
             raise IllegalDataAddressError()
-
 
 class WriteSingleRegister(ModbusFunction):
     """ Implement Modbus function code 06.
@@ -1231,16 +1228,23 @@ class WriteSingleRegister(ModbusFunction):
 
         return write_single_register
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
         :param eindpoint: Instance of modbus.route.Map.
+        :return: Result of call to endpoint.
         """
-        endpoint = route_map.match(slave_id, self.function_code, self.address)
         try:
-            endpoint(slave_id=slave_id, address=self.address, value=self.value,
-                     function_code=self.function_code)
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            value = self.value
+            server.write_register(offset, value)
+
         # route_map.match() returns None if no match is found. Calling None
         # results in TypeError.
         except TypeError:
@@ -1445,23 +1449,27 @@ class WriteMultipleCoils(ModbusFunction):
 
         return write_multiple_coils
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
         :param eindpoint: Instance of modbus.route.Map.
+        :return: Result of call to endpoint.
         """
-        for index, value in enumerate(self.values):
-            address = self.starting_address + index
-            endpoint = route_map.match(slave_id, self.function_code, address)
+        try:
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            value = self.value
+            server.write_multi_coil(offset, value)
 
-            try:
-                endpoint(slave_id=slave_id, address=address, value=value,
-                         function_code=self.function_code)
-            # route_map.match() returns None if no match is found. Calling None
-            # results in TypeError.
-            except TypeError:
-                raise IllegalDataAddressError()
+        # route_map.match() returns None if no match is found. Calling None
+        # results in TypeError.
+        except TypeError:
+            raise IllegalDataAddressError()
 
 
 class WriteMultipleRegisters(ModbusFunction):
@@ -1597,23 +1605,27 @@ class WriteMultipleRegisters(ModbusFunction):
 
         return write_multiple_registers
 
-    def execute(self, slave_id, route_map):
+    def execute(self, slave_id, server):
         """ Execute the Modbus function registered for a route.
 
         :param slave_id: Slave id.
         :param eindpoint: Instance of modbus.route.Map.
+        :return: Result of call to endpoint.
         """
-        for index, value in enumerate(self.values):
-            address = self.starting_address + index
-            endpoint = route_map.match(slave_id, self.function_code, address)
+        try:
+            if slave_id != server.slave_id:
+              raise IllegalDataAddressError()
+       
+            offset = self.starting_address 
+            length = self.quantity 
+            function_code = self.function_code
+            value = self.value
+            server.write_multi_coil(offset, value)
 
-            try:
-                endpoint(slave_id=slave_id, address=address, value=value,
-                         function_code=self.function_code)
-            # route_map.match() returns None if no match is found. Calling None
-            # results in TypeError.
-            except TypeError:
-                raise IllegalDataAddressError()
+        # route_map.match() returns None if no match is found. Calling None
+        # results in TypeError.
+        except TypeError:
+            raise IllegalDataAddressError()
 
 function_code_to_function_map = {
     READ_COILS: ReadCoils,
